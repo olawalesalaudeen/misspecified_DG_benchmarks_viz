@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import streamlit as st
 from sklearn.model_selection import train_test_split
+
 from .utils import (
     evaluate_models,
     generate_matrix,
@@ -29,6 +30,9 @@ def run_simulation():
 
     # Basic parameters
     st.sidebar.header("Parameters")
+    # Add dark mode toggle at the top of parameters
+    is_dark_mode = st.sidebar.checkbox("Use dark mode for plots")
+
     dg_dim = st.sidebar.number_input(
         "Domain General Dimension", min_value=1, max_value=10, value=2
     )
@@ -318,10 +322,20 @@ def run_simulation():
             n_models=n_models,
         )
 
-        # Plot results
+        # Update plot colors based on theme
+        plt.style.use("dark_background" if is_dark_mode else "default")
+
+        # Plot results with adjusted colors
         fig = plot_accuracies(
-            id_accs, ood_accs, weights, samples["optimal_dg_acc"]
+            id_accs,
+            ood_accs,
+            weights,
+            samples["optimal_dg_acc"],
+            is_dark_mode=is_dark_mode,
         )
+
+        # Reset style to prevent affecting other plots
+        plt.style.use("default")
         st.pyplot(fig)
 
         # Display statistics
@@ -365,4 +379,3 @@ def run_simulation():
         st.write(
             f"Joint Predictiveness: {samples['optimal_combined_acc']:.3f}"
         )
-        

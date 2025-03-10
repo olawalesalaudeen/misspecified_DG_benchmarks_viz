@@ -1,7 +1,8 @@
-# utils.py 
+# utils.py
 
 import matplotlib.pyplot as plt
 import numpy as np
+import streamlit as st
 from scipy import stats
 from scipy.stats import norm
 from sklearn.ensemble import RandomForestClassifier
@@ -172,9 +173,17 @@ def generate_samples(
 
 
 def plot_accuracies(
-    id_accs, ood_accs, weights_ratio=None, optimal_dg_acc=None
+    id_accs,
+    ood_accs,
+    weights_ratio=None,
+    optimal_dg_acc=None,
+    is_dark_mode=False,
 ):
     """Plot accuracies with optimal Z_dg accuracy line."""
+    # Set colors based on theme
+    text_color = "white" if is_dark_mode else "black"
+    grid_color = "gray" if is_dark_mode else "lightgray"
+
     eps = 1e-10
     id_accs_adj = np.clip(id_accs, eps, 1 - eps)
     ood_accs_adj = np.clip(ood_accs, eps, 1 - eps)
@@ -188,6 +197,7 @@ def plot_accuracies(
     x_range = np.array([min_probit - range_buffer, max_probit + range_buffer])
 
     fig, ax = plt.subplots(figsize=(8, 8))
+
     if weights_ratio is not None:
         scatter = ax.scatter(
             id_accs_probit,
@@ -196,7 +206,11 @@ def plot_accuracies(
             cmap="viridis",
             alpha=0.6,
         )
-        plt.colorbar(scatter, label="Domain General Feature Weight Ratio")
+        colorbar = plt.colorbar(
+            scatter, label="Domain General Feature Weight Ratio"
+        )
+        colorbar.ax.yaxis.label.set_color(text_color)
+        colorbar.ax.tick_params(colors=text_color)
     else:
         ax.scatter(id_accs_probit, ood_accs_probit, alpha=0.6)
 
@@ -229,14 +243,28 @@ def plot_accuracies(
 
     ax.set_xticks(probit_ticks)
     ax.set_yticks(probit_ticks)
-    ax.set_xticklabels([f"{x:.3f}" for x in acc_ticks])
-    ax.set_yticklabels([f"{x:.3f}" for x in acc_ticks])
+    ax.set_xticklabels([f"{x:.3f}" for x in acc_ticks], color=text_color)
+    ax.set_yticklabels([f"{x:.3f}" for x in acc_ticks], color=text_color)
 
-    ax.set_xlabel("ID Accuracy")
-    ax.set_ylabel("OOD Accuracy")
-    ax.set_title("ID vs OOD Performance (Probit Scale)")
-    ax.grid(True)
-    ax.legend()
+    ax.set_xlabel("ID Accuracy", color=text_color)
+    ax.set_ylabel("OOD Accuracy", color=text_color)
+    ax.set_title("ID vs OOD Performance (Probit Scale)", color=text_color)
+    ax.grid(True, color=grid_color, alpha=0.3)
+
+    # Update legend text color
+    legend = ax.legend()
+    plt.setp(legend.get_texts(), color=text_color)
+
+    # Set figure background and spine colors for dark mode
+    if is_dark_mode:
+        fig.patch.set_facecolor("#0E1117")
+        ax.set_facecolor("#0E1117")
+        ax.spines["bottom"].set_color("white")
+        ax.spines["top"].set_color("white")
+        ax.spines["left"].set_color("white")
+        ax.spines["right"].set_color("white")
+        ax.tick_params(colors="white")
+
     return fig
 
 

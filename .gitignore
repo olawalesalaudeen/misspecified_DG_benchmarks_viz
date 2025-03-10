@@ -1,0 +1,14 @@
+*.pyc
+*.pyo
+*.pyd
+*.pyw
+*.pyz
+*.pywz
+*.pyzw
+*__pycache__*
+*.DS_Store
+*.venv
+*.env
+*.log
+*.txt
+*.csv
