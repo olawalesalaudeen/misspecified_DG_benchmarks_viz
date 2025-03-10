@@ -71,14 +71,6 @@ def generate_samples(
 ):
     """
     Generate samples with controlled predictiveness for each feature type.
-
-    Parameters:
-    - mean_dg, cov_dg: domain-general feature parameters
-    - mean_spu, cov_spu: spurious feature parameters
-    - shift_matrix: matrix for OOD transformation
-    - dg_pred: target predictiveness of domain-general features (0.5-1.0)
-    - spu_pred: target predictiveness of spurious features (0.5-1.0)
-    - joint_pred: target predictiveness of combined features (0.5-1.0)
     """
     np.random.seed(seed)
 
@@ -120,14 +112,19 @@ def generate_samples(
         ]
     )
 
-    # Generate spurious features for OOD and apply shift
-    Z_spu_ood_base = np.array(
+    # Transform parameters for OOD spurious features
+    mean_spu_ood = mean_spu_scaled @ shift_matrix  # Transform mean
+    cov_spu_ood = (
+        shift_matrix @ cov_spu_scaled @ shift_matrix.T
+    )  # Transform covariance
+
+    # Generate spurious features for OOD by sampling from transformed distribution
+    Z_spu_ood = np.array(
         [
-            np.random.multivariate_normal(y * mean_spu_scaled, cov_spu_scaled)
+            np.random.multivariate_normal(y * mean_spu_ood, cov_spu_ood)
             for y in Y_ood
         ]
     )
-    Z_spu_ood = Z_spu_ood_base @ shift_matrix
 
     # Combine features
     X_id = np.hstack([Z_dg_id, Z_spu_id])
