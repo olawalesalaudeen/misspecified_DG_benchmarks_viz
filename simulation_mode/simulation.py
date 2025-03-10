@@ -25,7 +25,7 @@ def format_vector(vector):
 
 def run_simulation():
     st.title(
-        "Domain Generalization Validity and Accuracy on the Line Simulation"
+        "Domain Generalization Benchmarks and Accuracy on the Line Simulation"
     )
 
     # Basic parameters
