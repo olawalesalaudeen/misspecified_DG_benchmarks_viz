@@ -245,7 +245,7 @@ def plot_accuracies(
 
     ax.set_xlabel("ID Accuracy", color=text_color)
     ax.set_ylabel("OOD Accuracy", color=text_color)
-    ax.set_title("ID vs OOD Performance (Probit Scale)", color=text_color)
+    ax.set_title("ID vs OOD Performance (Probit)", color=text_color)
     ax.grid(True, color=grid_color, alpha=0.3)
 
     # Update legend text color

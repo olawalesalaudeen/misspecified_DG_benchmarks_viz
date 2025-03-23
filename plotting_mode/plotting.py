@@ -198,9 +198,7 @@ def run_real_data_plotting():
     )
 
     # Selected Axis Scaling
-    scaling = st.sidebar.selectbox(
-        "Axis Scaling", ["Probit", "Linear", "Square Root", "Logit"]
-    )
+    scaling = st.sidebar.selectbox("Axis Scaling", ["Probit", "Linear"])
 
     # Selected Left-Out Domain
     dataset_df = records_df[selected_dataset]
@@ -272,6 +270,7 @@ def run_real_data_plotting():
             scaling=scaling,
             show_linear_fits=linear_fit_toggle,
             legend_change=legend_change,
+            is_dark_mode=is_dark_mode,
         )
 
         if is_dark_mode:

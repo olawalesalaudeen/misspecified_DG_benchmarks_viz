@@ -1,89 +1,97 @@
-# utils.py
-
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
+import plotly.io as pio
 import statsmodels.api as sm
 from plotly.subplots import make_subplots
 from scipy.stats import linregress, norm
 
-# Color map for different environments or model architectures
-COLOR_MAP = {
-    0: "blue",
-    1: "red",
-    2: "green",
-    3: "orange",
-    4: "purple",
-    5: "brown",
-    6: "pink",
-    7: "gray",
-    8: "olive",
-    9: "cyan",
-    10: "magenta",
-    11: "yellow",
-    12: "black",
-    13: "darkblue",
-    14: "darkred",
-    15: "darkgreen",
-    16: "darkorange",
-    17: "darkpurple",
-    18: "darkbrown",
-    19: "darkpink",
-    20: "darkgray",
-    21: "darkolive",
-    22: "darkcyan",
-    23: "darkmagenta",
-    24: "darkyellow",
-}
+# --------------------------------------------------------------------
+# 1) Example "mpl_dark" template for dark mode
+# --------------------------------------------------------------------
+mpl_dark_template = go.layout.Template(
+    layout=go.Layout(
+        paper_bgcolor="black",
+        plot_bgcolor="black",
+        font=dict(color="lightgray"),
+        legend=dict(bgcolor="rgba(0,0,0,0)", font=dict(color="lightgray")),
+        xaxis=dict(
+            linecolor="lightgray",
+            gridcolor="lightgray",
+            zerolinecolor="lightgray",
+            tickfont=dict(color="lightgray"),
+            title_font=dict(color="lightgray"),
+        ),
+        yaxis=dict(
+            linecolor="lightgray",
+            gridcolor="lightgray",
+            zerolinecolor="lightgray",
+            tickfont=dict(color="lightgray"),
+            title_font=dict(color="lightgray"),
+        ),
+    )
+)
+pio.templates["mpl_dark"] = mpl_dark_template
+
+# --------------------------------------------------------------------
+# 2) Helper functions for color picking
+# --------------------------------------------------------------------
 
 
+def get_env_color(env_idx, is_dark_mode=False):
+    """
+    Pick a bright color from a palette for environment lines,
+    ensuring good visibility in both dark and light mode.
+    """
+    # A palette of 10 bright colors (similar to Plotly default)
+    bright_colors = [
+        "#1f77b4",  # Blue
+        "#ff7f0e",  # Orange
+        "#2ca02c",  # Green
+        "#d62728",  # Red
+        "#9467bd",  # Purple
+        "#8c564b",  # Brown
+        "#e377c2",  # Pink
+        "#7f7f7f",  # Gray
+        "#bcbd22",  # Olive
+        "#17becf",  # Teal
+    ]
+    return bright_colors[env_idx % len(bright_colors)]
+
+
+def get_special_line_color(line_name, is_dark_mode=False):
+    """
+    Assign line colors for special lines (y=x, overall fit, optimal line, etc.)
+    depending on dark or light mode.
+    """
+    if line_name == "y=x":
+        # White stands out in dark mode, red is more visible in light mode
+        return "white" if is_dark_mode else "red"
+    elif line_name == "optimal":
+        # Lime is bright on dark, green is more standard on light
+        return "lime" if is_dark_mode else "green"
+    elif line_name == "overall_fit":
+        # Cyan on dark, Blue on light
+        return "cyan" if is_dark_mode else "blue"
+    else:
+        # Fallback color
+        return "gray"
+
+
+# --------------------------------------------------------------------
+# 3) Utility functions (rescale, validate, display_env_data)
+# --------------------------------------------------------------------
 def rescale(data, scaling=None):
     """
     Rescale the data according to the specified scaling method.
     """
     if scaling == "Probit":
         return norm.ppf(data)
-    elif scaling == "Logit":
-        return np.log(data / (1 - data))
     elif scaling == "Linear":
         return data
-    elif scaling == "Square Root":
-        return np.sqrt(data)
     raise NotImplementedError(
         f"Scaling method '{scaling}' is not implemented."
     )
-
-
-def linear_fit(x, y):
-    """
-    Perform linear regression and return the bias and slope.
-    """
-    x, y = np.array(x), np.array(y)
-
-    # Remove invalid entries
-    valid_idx = ~np.isnan(x) & ~np.isinf(x) & ~np.isnan(y) & ~np.isinf(y)
-    x, y = x[valid_idx], y[valid_idx]
-
-    model = sm.OLS(y, sm.add_constant(x))
-    result = model.fit()
-    return result.params, result.rsquared
-
-
-def parse_to_html(data):
-    """
-    Parse a string representation of a dictionary to HTML format.
-    """
-    data = data.strip("{} ")
-    items = data.split(", ")
-
-    html_output = ""
-    for item in items:
-        key, value = item.split(": ", 1)
-        key = key.strip().strip("'")
-        value = value.strip().strip("'")
-        html_output += f"{key}: {value}<br>"
-
-    return html_output
 
 
 def validate_stability(values):
@@ -95,127 +103,13 @@ def validate_stability(values):
     return values
 
 
-def scatter_plot(
-    df,
-    env,
-    scaling="Probit",
-    do_domain=True,
-    legend_change=False,
-    show_linear_fits=True,
-    colors="blue",
-    fitcolor="black",
-):
-    """
-    Scatter plot Xs against Ys, optionally scaling the data.
-    """
-    x_vals = validate_stability(np.array(df["x"].values).reshape(-1, 1))
-    y_vals = validate_stability(np.array(df["y"].values).reshape(-1, 1))
-
-    scaled_xs = rescale(x_vals, scaling)
-    scaled_ys = rescale(y_vals, scaling)
-
-    def label_point(i):
-        """
-        Generate hover label for each point.
-        """
-        x = x_vals[i, 0]
-        y = y_vals[i, 0]
-        label = f"Environment {env[i]}<br>"
-        label += f"Algorithm: {df['algorithm'].values[i]}<br>"
-        label += f"Model Architecture: {df['model_arch'].values[i]}<br>"
-        label += f"Transfer Learning: {df['transfer'].values[i]}<br>"
-        label += f"X: {x:.2f} <br>"
-        label += f"Y: {y:.2f} <br>"
-        return label
-
-    # Create scatter plot
-    traces = [
-        go.Scatter(
-            x=scaled_xs.flatten(),
-            y=scaled_ys.flatten(),
-            hoverinfo="text",
-            mode="markers",
-            marker=dict(color=colors, size=6),
-            text=[label_point(i) for i in range(len(scaled_xs))],
-            showlegend=False,
-        )
-    ]
-
-    # Show linear fit for each environment
-    if not legend_change:
-        if show_linear_fits and do_domain:
-            unique_envs = np.unique(env)
-            for unique_env in unique_envs:
-                env_mask = env == unique_env
-                slope, intercept, pearson_corr, _, _ = linregress(
-                    scaled_xs[env_mask].flatten(),
-                    scaled_ys[env_mask].flatten(),
-                )
-                sample_pts = rescale(np.arange(0.0, 1.0, 0.01), scaling)
-                traces.append(
-                    go.Scatter(
-                        mode="lines",
-                        x=sample_pts,
-                        y=slope * sample_pts + intercept,
-                        name=f"Env {unique_env} Slope: {slope:.2f}<br>R: {pearson_corr:.2f}",
-                        line=dict(color=COLOR_MAP[unique_env]),
-                        showlegend=True,
-                    )
-                )
-    else:
-        # Change legend to model architecture
-        unique_model_archs = df["model_arch"].unique()
-        model_arch_to_color_idx = zip(
-            range(len(unique_model_archs)), unique_model_archs
-        )
-        model_arch_color_dict = {
-            model_arch: COLOR_MAP[idx]
-            for idx, model_arch in model_arch_to_color_idx
-        }
-
-        for model_arch in unique_model_archs:
-            model_arch_mask = df["model_arch"] == model_arch
-            slope, intercept, pearson_corr, _, _ = linregress(
-                scaled_xs[model_arch_mask].flatten(),
-                scaled_ys[model_arch_mask].flatten(),
-            )
-            sample_pts = rescale(np.arange(0.0, 1.0, 0.01), scaling)
-            traces.append(
-                go.Scatter(
-                    mode="lines",
-                    x=sample_pts,
-                    y=slope * sample_pts + intercept,
-                    name=f"Model Arch: {model_arch} Slope: {slope:.2f}<br>R: {pearson_corr:.2f}",
-                    line=dict(color=model_arch_color_dict[model_arch]),
-                    showlegend=True,
-                )
-            )
-
-    # Add linear fit for overall
-    slope, intercept, pearson_corr, _, _ = linregress(
-        scaled_xs.flatten(), scaled_ys.flatten()
-    )
-    sample_pts = rescale(np.arange(0.0, 1.0, 0.01), scaling)
-    traces.append(
-        go.Scatter(
-            mode="lines",
-            x=sample_pts,
-            y=slope * sample_pts + intercept,
-            name=f"Overall Slope: {slope:.2f}<br>R: {pearson_corr:.2f}",
-            line=dict(color=fitcolor),
-        )
-    )
-    env_df = display_env_data(df, env, scaling)
-    return traces, env_df
-
-
 def display_env_data(df, env, scaling="Probit"):
     """
     Create a DataFrame to display slope, R2, p-value, and standard error for each environment.
     """
     left_out_env = df["test_env"].values[0]
-    x_vals = validate_stability(np.array(df["x"].values).reshape(-1, 1))
-    y_vals = validate_stability(np.array(df["y"].values).reshape(-1, 1))
+    x_vals = validate_stability(df["x"].values.reshape(-1, 1))
+    y_vals = validate_stability(df["y"].values.reshape(-1, 1))
 
     scaled_xs = rescale(x_vals, scaling)
     scaled_ys = rescale(y_vals, scaling)
@@ -244,6 +138,133 @@ def display_env_data(df, env, scaling="Probit"):
     return env_df
 
 
+# --------------------------------------------------------------------
+# 4) Main scatter plot function
+# --------------------------------------------------------------------
+def scatter_plot(
+    df,
+    env,
+    scaling="Probit",
+    do_domain=True,
+    legend_change=False,
+    show_linear_fits=True,
+    is_dark_mode=False,
+):
+    """
+    Scatter plot X vs Y, optionally scaling the data.
+    No color bar; a single color or environment-based colors.
+    """
+    x_vals = validate_stability(df["x"].values.reshape(-1, 1))
+    y_vals = validate_stability(df["y"].values.reshape(-1, 1))
+    scaled_xs = rescale(x_vals, scaling)
+    scaled_ys = rescale(y_vals, scaling)
+
+    def label_point(i):
+        """
+        Generate hover label for each point.
+        """
+        x = x_vals[i, 0]
+        y = y_vals[i, 0]
+        label = f"Environment {env[i]}<br>"
+        label += f"Algorithm: {df['algorithm'].values[i]}<br>"
+        label += f"Model Arch: {df['model_arch'].values[i]}<br>"
+        label += f"Transfer: {df['transfer'].values[i]}<br>"
+        label += f"X: {x:.3f} <br>"
+        label += f"Y: {y:.3f} <br>"
+        return label
+
+    # Scatter points: single color for all points
+    # (If you want environment-based colors for the points themselves,
+    #  you can do so by building a color array.)
+    traces = [
+        go.Scatter(
+            x=scaled_xs.flatten(),
+            y=scaled_ys.flatten(),
+            mode="markers",
+            hoverinfo="text",
+            text=[label_point(i) for i in range(len(scaled_xs))],
+            showlegend=False,
+            marker=dict(
+                size=8,
+                color=(
+                    "steelblue" if not is_dark_mode else "#17becf"
+                ),  # e.g. teal in dark mode
+                showscale=False,
+            ),
+        )
+    ]
+
+    # Per-environment or per-architecture lines
+    if not legend_change:
+        if show_linear_fits and do_domain:
+            unique_envs = np.unique(env)
+            for i, unique_env in enumerate(unique_envs):
+                env_mask = env == unique_env
+                slope, intercept, r_val, _, _ = linregress(
+                    scaled_xs[env_mask].flatten(),
+                    scaled_ys[env_mask].flatten(),
+                )
+                sample_pts = np.linspace(scaled_xs.min(), scaled_xs.max(), 50)
+                line_y = slope * sample_pts + intercept
+                env_color = get_env_color(i, is_dark_mode)
+                traces.append(
+                    go.Scatter(
+                        mode="lines",
+                        x=sample_pts,
+                        y=line_y,
+                        name=f"Env {unique_env}, slope={slope:.2f}, R={r_val:.2f}",
+                        line=dict(color=env_color),
+                        showlegend=True,
+                    )
+                )
+    else:
+        # Legend by model architecture
+        unique_model_archs = df["model_arch"].unique()
+        for i, arch in enumerate(unique_model_archs):
+            arch_mask = df["model_arch"] == arch
+            slope, intercept, r_val, _, _ = linregress(
+                scaled_xs[arch_mask].flatten(), scaled_ys[arch_mask].flatten()
+            )
+            sample_pts = np.linspace(scaled_xs.min(), scaled_xs.max(), 50)
+            line_y = slope * sample_pts + intercept
+            arch_color = get_env_color(i, is_dark_mode)
+            traces.append(
+                go.Scatter(
+                    mode="lines",
+                    x=sample_pts,
+                    y=line_y,
+                    name=f"Arch {arch}, slope={slope:.2f}, R={r_val:.2f}",
+                    line=dict(color=arch_color),
+                    showlegend=True,
+                )
+            )
+
+    # Overall fit
+    slope, intercept, r_val, _, _ = linregress(
+        scaled_xs.flatten(), scaled_ys.flatten()
+    )
+    r_squared = r_val**2
+    sample_pts = np.linspace(scaled_xs.min(), scaled_xs.max(), 50)
+    line_y = slope * sample_pts + intercept
+    overall_fit_color = get_special_line_color("overall_fit", is_dark_mode)
+    traces.append(
+        go.Scatter(
+            mode="lines",
+            x=sample_pts,
+            y=line_y,
+            name=f"Linear fit (slope={slope:.2f}, R²={r_squared:.2f})",
+            line=dict(color=overall_fit_color, width=2),
+        )
+    )
+
+    # Prepare the environment DataFrame
+    env_df = display_env_data(df, env, scaling)
+    return traces, env_df
+
+
+# --------------------------------------------------------------------
+# 5) Main plot function
+# --------------------------------------------------------------------
 def plot(
     df,
     scaling="Probit",
@@ -251,143 +272,90 @@ def plot(
     metric="Accuracy",
     all_shown=False,
     legend_change=False,
+    is_dark_mode=False,
 ):
     """
-    Generate an interactive scatter plot.
+    Generate an interactive scatter plot with:
+    - optional dark mode,
+    - border around the plot,
+    - legend on the right outside the plot area,
+    - special lines with colors adapted to dark/light mode.
     """
-    # Create the figure with a single explicit title instead of subplot titles
+    chosen_template = "mpl_dark" if is_dark_mode else None
+
     fig = make_subplots(rows=1, cols=1)
 
-    # Set the main title directly in the layout
+    # Basic layout
     fig.update_layout(
+        template=chosen_template,
         title=dict(
-            text=f"Accuracy on the Line for Test Domain ({scaling})",
-            x=0.5,  # Center the title
+            text=f"ID vs OOD Performance ({scaling} Scale)",
+            x=0.5,
             xanchor="center",
-        )
+        ),
+        width=800,
+        height=600,
+        # Move legend to the right outside plot
+        legend=dict(
+            x=1.02,
+            y=1,
+            xanchor="left",
+            yanchor="auto",
+            bgcolor="rgba(0,0,0,0)",
+        ),
+        # Give extra right margin so legend isn't cut off
+        margin=dict(r=150),
     )
 
-    traces = []
-
-    # Obtain color mapping for model architectures and environments
-    model_arch_to_color_idx = zip(
-        range(len(df["model_arch"].unique())), df["model_arch"].unique()
-    )
-    model_arch_color_dict = {
-        model_arch: COLOR_MAP[idx]
-        for idx, model_arch in model_arch_to_color_idx
-    }
-    model_arch_color_mapping = (
-        df["model_arch"].map(model_arch_color_dict).values
-    )
-    env_color_mapping = [COLOR_MAP[x] for x in df["train_env"].values]
-
-    # Plot scatter plot
+    # Add scatter & environment fits
     plot_traces, env_df = scatter_plot(
         df,
         env=df["train_env"].values,
         scaling=scaling,
         legend_change=legend_change,
         show_linear_fits=show_linear_fits,
-        colors=(
-            env_color_mapping
-            if not legend_change
-            else model_arch_color_mapping
-        ),
+        is_dark_mode=is_dark_mode,
     )
 
-    # Plot line for y=x
-    traces.extend(plot_traces)
-    metric_min, metric_max = 0.01, 0.99
-    traces.append(
-        go.Scatter(
-            mode="lines",
-            x=rescale(np.arange(metric_min, metric_max + 0.01, 0.01), scaling),
-            y=rescale(np.arange(metric_min, metric_max + 0.01, 0.01), scaling),
-            name="y=x",
-            line=dict(color="black", dash="dashdot"),
-        )
-    )
-
-    # Add traces to figure
-    for trace in traces:
+    # Add traces
+    for trace in plot_traces:
         fig.add_trace(trace, row=1, col=1)
 
-    # Adjust tickmarks
-    tickmarks = np.array([0.1, 0.25, 0.5, 0.7, 0.8, 0.9, 0.95, metric_max])
-    ticks = dict(
+    # 1) y=x line
+    metric_min, metric_max = 0.31, 0.90
+    x_vals = np.linspace(metric_min, metric_max, 50)
+    xy_line_color = get_special_line_color("y=x", is_dark_mode)
+    fig.add_trace(
+        go.Scatter(
+            mode="lines",
+            x=rescale(x_vals, scaling),
+            y=rescale(x_vals, scaling),
+            name="y=x",
+            line=dict(color=xy_line_color, dash="dash"),
+        ),
+        row=1,
+        col=1,
+    )
+
+    # Axis ticks
+    tickmarks = np.linspace(metric_min, metric_max, 5)
+    tick_dict = dict(
         tickmode="array",
         tickvals=rescale(tickmarks, scaling),
         ticktext=[f"{mark:.2f}" for mark in tickmarks],
-        tickfont=dict(color="black"),
+        showgrid=True,
+        gridcolor="lightgray",
+    )
+    fig.update_xaxes(title="ID Accuracy", **tick_dict)
+    fig.update_yaxes(title="OOD Accuracy", **tick_dict)
+
+    # Add plot border
+    border_color = "lightgray" if is_dark_mode else "black"
+    fig.update_xaxes(
+        showline=True, linewidth=2, linecolor=border_color, mirror=True
+    )
+    fig.update_yaxes(
+        showline=True, linewidth=2, linecolor=border_color, mirror=True
     )
 
-    # Upload layout
-    fig.update_layout(width=1000, height=700, xaxis=ticks, yaxis=ticks)
-    return fig, env_df
-
-    title = f"Accuracy on the Line for Test Domain"
-    fig = make_subplots(
-        rows=1,
-        cols=1,
-        subplot_titles=((f"{title} ({scaling})"),),
-    )
-    fig.update_annotations(font=dict(color="black"))
-    traces = []
-
-    # Obtain color mapping for model architectures and environments
-    model_arch_to_color_idx = zip(
-        range(len(df["model_arch"].unique())), df["model_arch"].unique()
-    )
-    model_arch_color_dict = {
-        model_arch: COLOR_MAP[idx]
-        for idx, model_arch in model_arch_to_color_idx
-    }
-    model_arch_color_mapping = (
-        df["model_arch"].map(model_arch_color_dict).values
-    )
-    env_color_mapping = [COLOR_MAP[x] for x in df["train_env"].values]
-
-    # Plot scatter plot
-    plot_traces, env_df = scatter_plot(
-        df,
-        env=df["train_env"].values,
-        scaling=scaling,
-        legend_change=legend_change,
-        show_linear_fits=show_linear_fits,
-        colors=(
-            env_color_mapping
-            if not legend_change
-            else model_arch_color_mapping
-        ),
-    )
-
-    # Plot line for y=x
-    traces.extend(plot_traces)
-    metric_min, metric_max = 0.01, 0.99
-    traces.append(
-        go.Scatter(
-            mode="lines",
-            x=rescale(np.arange(metric_min, metric_max + 0.01, 0.01), scaling),
-            y=rescale(np.arange(metric_min, metric_max + 0.01, 0.01), scaling),
-            name="y=x",
-            line=dict(color="black", dash="dashdot"),
-        )
-    )
-
-    # Add traces to figure
-    for trace in traces:
-        fig.add_trace(trace, row=1, col=1)
-
-    # Adjust tickmarks
-    tickmarks = np.array([0.1, 0.25, 0.5, 0.7, 0.8, 0.9, 0.95, metric_max])
-    ticks = dict(
-        tickmode="array",
-        tickvals=rescale(tickmarks, scaling),
-        ticktext=[f"{mark:.2f}" for mark in tickmarks],
-        tickfont=dict(color="black"),
-    )
-
-    # Upload layout
-    fig.update_layout(width=1000, height=700, xaxis=ticks, yaxis=ticks)
     return fig, env_df
